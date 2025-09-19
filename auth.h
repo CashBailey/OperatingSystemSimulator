@@ -1,7 +1,14 @@
-// FILE: auth.h
-#pragma once
+#ifndef AUTH_H
+#define AUTH_H
 
-// authenticateUser prompts for credentials and checks them against the
-// hardcoded administrator account. It returns true on success and prints
-// status messages for both success and failure cases.
-bool authenticateUser();
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int authenticateUser(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // AUTH_H
