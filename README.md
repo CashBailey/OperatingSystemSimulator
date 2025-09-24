@@ -24,11 +24,11 @@ This starter bootstraps a simplified operating system simulator. On launch, the 
 1. Open a terminal in the project directory.
 2. Compile:
    ```bash
-   g++ -std=c++17 -O2 -Wall -Wextra -pedantic main.cpp auth.cpp -o os_sim
+   gcc -o main main.cpp auth.cpp
    ```
 3. Run:
    ```bash
-   ./os_sim
+   ./main
    ```
 
 
