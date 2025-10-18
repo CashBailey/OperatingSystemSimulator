@@ -186,4 +186,3 @@ while (!ready.empty() || !io.empty() || running) {
 * Add CLI arguments for selecting scheduling policies (FCFS, SJF, RR, Priority).
 * Generate statistics for waiting and turnaround time.
 ---
-```
