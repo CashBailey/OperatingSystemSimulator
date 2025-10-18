@@ -1,4 +1,3 @@
-```markdown
 # Operating System Simulator
 
 ## Team Members
@@ -186,7 +185,5 @@ while (!ready.empty() || !io.empty() || running) {
 * Simulate I/O devices with delay handling.
 * Add CLI arguments for selecting scheduling policies (FCFS, SJF, RR, Priority).
 * Generate statistics for waiting and turnaround time.
-
-```
 ---
 ```
