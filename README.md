@@ -8,8 +8,12 @@
 
 ## Overview
 **Operating System Simulator** is a compact, instructional OS environment.  
-The current sample implements the boot sequence and a simple authentication flow against a fixed administrator account.  
-Additional modules—scheduling, I/O, and memory management—are planned and partly scaffolded below. A standalone **Scheduling Module** (**Round Robin** and **SJF**) is included and wired through the current `main.cpp`. FCFS and SRTF are planned.
+The current setup focuses on **process scheduling** and includes three algorithms wired into `main.cpp`:
+- **FCFS** (First‑Come, First‑Served, non‑preemptive)
+- **Round Robin** (preemptive with time quantum)
+- **SJF** (Shortest Job First, non‑preemptive)
+
+A boot/auth sample remains available in the repository and can be built separately. Additional modules—scheduling extensions, I/O, and memory management—are planned and partly scaffolded.
 
 ---
 
@@ -19,9 +23,9 @@ Additional modules—scheduling, I/O, and memory management—are planned and pa
 
 .
 ├─ README.md
-├─ main.cpp           # Current entry: scheduler demo driver (Round Robin + SJF)
-├─ scheduler.h        # Process model + scheduler API (RR + SJF)
-├─ scheduler.cpp      # Implementations for RR + SJF and ProcessCreation()
+├─ main.cpp           # Entry: generates processes and runs FCFS, RR, and SJF
+├─ scheduler.h        # Process model + scheduler API (FCFS, RR, SJF)
+├─ scheduler.cpp      # Implementations for FCFS + RR + SJF and ProcessCreation()
 ├─ auth.h             # Declaration of authenticateUser()     (available, not used by current main)
 ├─ auth.cpp           # Implementation: prompts user & checks (available, not used by current main)
 ├─ process.h          # Process model (states, timing, I/O milestones)
@@ -29,13 +33,14 @@ Additional modules—scheduling, I/O, and memory management—are planned and pa
 
 ````
 
-> Note: The current `main.cpp` runs the scheduling demo. The original boot/auth sample remains in the repo and can be built separately (see below).
+> Note: The current `main.cpp` runs the scheduling demo (FCFS, Round Robin, SJF).  
+> The original boot/auth sample remains in the repo and can be built separately.
 
 ---
 
 ## Build & Run
 
-### Scheduling (current setup: Round Robin + SJF)
+### Scheduling (current setup: FCFS + Round Robin + SJF)
 ```bash
 g++ -std=c++17 -O2 -Wall -Wextra -pedantic main.cpp scheduler.cpp -o scheduler_demo
 ./scheduler_demo
@@ -128,40 +133,80 @@ Each program is a `Process` with states and accounting fields.
 
 ---
 
-## Scheduling Module (Round Robin, SJF)
+## Scheduling Module (FCFS, Round Robin, SJF)
 
-The current scheduling code provides:
+### What `main.cpp` does
 
-* **Round Robin (arrival-aware)** — time-quantum based, with idle fast-forward when Ready is empty.
-* **SJF (non-preemptive, arrival-aware)** — picks the process with the shortest remaining time (equal to `Cpu_burst` here) and runs it to completion.
+1. Generates a random number of processes (1–10) with randomized attributes via `ProcessCreation(int pid)`.
+2. Sorts processes by `arrival_time` and prints their attributes.
+3. Executes **all three** schedulers in sequence:
 
-**Public API (from `scheduler.h`)**
+   * `run_fcfs(processes);`
+   * `run_round_robin(processes, quantumTime);`
+   * `run_sjf(processes);`
 
-* `Process ProcessCreation(int pid);`
-* `void run_round_robin(const vector<Process>& processes, int quantumTime);`
-* `void run_sjf(const vector<Process>& processes);`
+### Algorithms
 
-`main.cpp` generates a random set of processes, prints them in arrival order, and then invokes both schedulers.
+#### FCFS (First‑Come, First‑Served, non‑preemptive)
 
-**Output (per algorithm)**
+Implements the exact FCFS logic:
 
-1. Per-process metrics:
+1. Sort by `arrival_time`.
+2. For each process in arrival order:
+
+   * `start = max(currentTime, arrival_time)`
+   * `completion = start + Cpu_burst`
+   * `turnaround = completion - arrival_time`
+   * `waiting = turnaround - Cpu_burst`
+3. Prints a tabular summary:
+
+```
+PID    Arrival  Burst  Start  Completion  Turnaround  Waiting
+...    ...      ...    ...    ...         ...         ...
+```
+
+Also prints **Average Turnaround Time** and **Average Waiting Time**.
+
+#### Round Robin (preemptive, arrival‑aware)
+
+* Uses a ready queue and a fixed time quantum.
+* If the CPU becomes idle and there are future arrivals, time fast‑forwards to the next arrival.
+* Prints transitions and a per‑process summary with averages.
+* Note: The log message string contains “quantam” to match the current code output.
+
+#### SJF (Shortest Job First, non‑preemptive, arrival‑aware)
+
+* Among the processes that have arrived, picks the smallest `remaining_time` (equal to `Cpu_burst` for non‑preemptive SJF).
+* Runs that process to completion.
+* Prints per‑process details and averages.
+
+### Public API (`scheduler.h`)
+
+```cpp
+Process ProcessCreation(int pid);
+
+void run_fcfs(const std::vector<Process>& processes);
+void run_round_robin(const std::vector<Process>& processes, int quantumTime);
+void run_sjf(const std::vector<Process>& processes);
+```
+
+### Output (per algorithm)
+
+1. **Per‑process metrics**
 
    * **Completion Time (CT)**
    * **Turnaround Time (TAT) = CT − arrival_time**
    * **Waiting Time (WT) = TAT − Cpu_burst**
-2. Averages: mean TAT and WT
-3. Timeline logs for state transitions
+2. **Averages**: mean TAT and WT
+3. **Logs**: state transitions and scheduling decisions (RR/SJF)
 
-**Deterministic tie-breaking**
+### Deterministic tie‑breaking
 
-* Sorted by arrival time; if equal, by PID.
-
-> Note: The Round Robin log prints “quantam” to match the current code’s `cout` string.
+* Sorted by `arrival_time`; if equal, by `pid`.
 
 ---
 
-## Example Scheduler (Round-Robin pseudocode)
+## Example Round‑Robin Pseudocode
 
 ```cpp
 while (terminated.size() < processes.size()) {
@@ -177,8 +222,8 @@ while (terminated.size() < processes.size()) {
     continue;
   }
 
-  auto p = ready.front(); ready.pop_front();
-  run_time = min(QUANTUM, p.remaining_time);
+  auto p = ready.front(); ready.erase(ready.begin());
+  int run_time = min(QUANTUM, p.remaining_time);
   now += run_time;
   p.remaining_time -= run_time;
 
@@ -191,15 +236,13 @@ while (terminated.size() < processes.size()) {
 
 ## Roadmap
 
-* Add **FCFS** and **SRTF** implementations matching the current style.
+* Add **SRTF** (Shortest Remaining Time First).
 * Implement `process.cpp` fully and integrate I/O wait queues.
 * Add CLI flags for policy selection and quantum configuration.
-* Generate and export CSV summaries for metrics.
+* Export CSV summaries for metrics.
 
 ---
 
 ## License / Attribution
 
 Add a license file at the repository root (e.g., MIT) or follow your course’s required licensing.
-
-
