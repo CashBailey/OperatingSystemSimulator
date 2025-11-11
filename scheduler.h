@@ -53,6 +53,7 @@ public:
 // Initializes a process with random values
 Process ProcessCreation(int pid);
 
-// Scheduling runners (each prints its own timeline and summary)
+// === Scheduling runners (each prints its own timeline and summary) ===
+void run_fcfs(const vector<Process>& processes);               // NEW: FCFS using your snippet's logic
 void run_round_robin(const vector<Process>& processes, int quantumTime);
 void run_sjf(const vector<Process>& processes);
