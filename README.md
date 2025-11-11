@@ -9,7 +9,7 @@
 ## Overview
 **Operating System Simulator** is a compact, instructional OS environment.  
 The current sample implements the boot sequence and a simple authentication flow against a fixed administrator account.  
-Additional modules—scheduling, I/O, and memory management—are planned and partly scaffolded below. A standalone **Scheduling Module** (FCFS, SJF, SRTF) is included as an optional library you can build and run separately.
+Additional modules—scheduling, I/O, and memory management—are planned and partly scaffolded below. A standalone **Scheduling Module** (**Round Robin** and **SJF**) is included and wired through the current `main.cpp`. FCFS and SRTF are planned.
 
 ---
 
@@ -19,29 +19,34 @@ Additional modules—scheduling, I/O, and memory management—are planned and pa
 
 .
 ├─ README.md
-├─ main.cpp           # Entry point: boot sequence + authentication
-├─ auth.h             # Declaration of authenticateUser()
-├─ auth.cpp           # Implementation: prompts user and checks credentials
+├─ main.cpp           # Current entry: scheduler demo driver (Round Robin + SJF)
+├─ scheduler.h        # Process model + scheduler API (RR + SJF)
+├─ scheduler.cpp      # Implementations for RR + SJF and ProcessCreation()
+├─ auth.h             # Declaration of authenticateUser()     (available, not used by current main)
+├─ auth.cpp           # Implementation: prompts user & checks (available, not used by current main)
 ├─ process.h          # Process model (states, timing, I/O milestones)
 └─ process.cpp        # (Planned) Process logic: constructors, transitions, accounting
 
-# Optional scheduling library (add these files if using the scheduler)
-
-# ├─ scheduler.h      # Public API for FCFS, SJF, SRTF
-
-# └─ scheduler.cpp    # Implementation (+ demo main when compiled with -DSCHEDULER_DEMO)
-
 ````
+
+> Note: The current `main.cpp` runs the scheduling demo. The original boot/auth sample remains in the repo and can be built separately (see below).
 
 ---
 
 ## Build & Run
 
-### Boot + Auth only
+### Scheduling (current setup: Round Robin + SJF)
+```bash
+g++ -std=c++17 -O2 -Wall -Wextra -pedantic main.cpp scheduler.cpp -o scheduler_demo
+./scheduler_demo
+````
+
+### Boot + Auth only (uses the original boot/auth driver)
+
 ```bash
 g++ -std=c++17 -O2 -Wall -Wextra -pedantic main.cpp auth.cpp -o simpleos
 ./simpleos
-````
+```
 
 ### With `process.cpp` (when implemented)
 
@@ -50,20 +55,11 @@ g++ -std=c++17 -O2 -Wall -Wextra -pedantic main.cpp auth.cpp process.cpp -o simp
 ./simpleos
 ```
 
-### Scheduling Module (library or demo)
-
-**Build the library only** (for use in your own driver):
+### Build just the scheduling objects (for your own driver)
 
 ```bash
 g++ -std=c++17 -O2 -Wall -Wextra -pedantic -c scheduler.cpp
-# Link 'scheduler.o' with your own driver later
-```
-
-**Run the built‑in demo** (enables a demo `main()` inside `scheduler.cpp`):
-
-```bash
-g++ -std=c++17 -O2 -Wall -Wextra -pedantic scheduler.cpp -o scheduler_demo -DSCHEDULER_DEMO
-./scheduler_demo
+# Link scheduler.o with your custom driver later
 ```
 
 ---
@@ -108,7 +104,7 @@ Each program is a `Process` with states and accounting fields.
 
 * `pid`: unique process ID
 * `arrival_time`: time the process enters the system
-* `burst_time`: total CPU time required
+* `Cpu_burst`: total CPU time required
 * `priority`: for priority scheduling (if used)
 * `state`: current state
 
@@ -122,7 +118,7 @@ Each program is a `Process` with states and accounting fields.
 **Memory & I/O**
 
 * `memory_required`: estimated memory demand
-* `io_milestones`: CPU‑time checkpoints that trigger I/O
+* `io_milestone`: CPU-time checkpoints that trigger I/O (pointer)
 * `io_count`: number of milestones
 * `io_next_index`: next milestone index
 
@@ -132,83 +128,62 @@ Each program is a `Process` with states and accounting fields.
 
 ---
 
-## Scheduling Module (FCFS, SJF, SRTF)
+## Scheduling Module (Round Robin, SJF)
 
-The scheduling library provides:
+The current scheduling code provides:
 
-* **FCFS** – First‑Come, First‑Served (non‑preemptive)
-* **SJF** – Shortest Job First (non‑preemptive)
-* **SRTF** – Shortest Remaining Time First (preemptive SJF)
+* **Round Robin (arrival-aware)** — time-quantum based, with idle fast-forward when Ready is empty.
+* **SJF (non-preemptive, arrival-aware)** — picks the process with the shortest remaining time (equal to `Cpu_burst` here) and runs it to completion.
 
 **Public API (from `scheduler.h`)**
 
-* Data: `Process`, `Segment` (Gantt slice), `Metrics`, `ScheduleResult`
-* Functions:
-  `scheduleFCFS`, `scheduleSJF`, `scheduleSRTF`, `runAll`, `printResults`, `printGantt`
+* `Process ProcessCreation(int pid);`
+* `void run_round_robin(const vector<Process>& processes, int quantumTime);`
+* `void run_sjf(const vector<Process>& processes);`
 
-**Input format (for your own drivers)**
-Each line describes one process (space‑separated or CSV):
-
-```
-pid arrival burst
-# or
-pid,arrival,burst
-```
-
-Lines starting with `#` are ignored.
+`main.cpp` generates a random set of processes, prints them in arrival order, and then invokes both schedulers.
 
 **Output (per algorithm)**
 
-1. Per‑process metrics:
+1. Per-process metrics:
 
-   * **CT** (Completion Time)
-   * **TAT** (Turnaround Time) = `CT − arrival`
-   * **WT** (Waiting Time) = `TAT − burst`
+   * **Completion Time (CT)**
+   * **Turnaround Time (TAT) = CT − arrival_time**
+   * **Waiting Time (WT) = TAT − Cpu_burst**
 2. Averages: mean TAT and WT
-3. Gantt segments (including `"IDLE"` gaps), printed as:
-   `[start — PID — end]`
+3. Timeline logs for state transitions
 
-**Reference numbers (demo dataset: P1(0,8), P2(1,4), P3(2,9), P4(3,5))**
+**Deterministic tie-breaking**
 
-* FCFS — Avg TAT **15.25**, Avg WT **8.75**
-* SJF  — Avg TAT **14.25**, Avg WT **7.75**
-* SRTF — Avg TAT **13.00**, Avg WT **6.50**
+* Sorted by arrival time; if equal, by PID.
 
-**Deterministic tie‑breaking**
-Order by arrival; if equal, by PID (lexicographic).
-SJF/SRTF pick the shortest burst/remaining time, then break ties by arrival, then PID.
+> Note: The Round Robin log prints “quantam” to match the current code’s `cout` string.
 
 ---
 
-## Example Scheduler (Round‑Robin pseudocode)
+## Example Scheduler (Round-Robin pseudocode)
 
 ```cpp
-while (!ready.empty() || !io.empty() || running) {
-  admit_new_arrivals(now);
-  complete_io(now);
-
-  if (!running && !ready.empty()) {
-    auto& p = ready.front(); ready.pop();
-    p.to_running(now);
-    running = &p;
+while (terminated.size() < processes.size()) {
+  // admit arrivals up to 'now'
+  while (next_to_arrive < N && proc[next_to_arrive].arrival_time <= now) {
+    ready.push(proc[next_to_arrive++]);
   }
 
-  if (running) {
-    if (running->tick_cpu(QUANTUM)) {
-      running->to_terminated(now);
-      running = nullptr;
-    } else if (running->check_io_request()) {
-      running->to_waiting(now);
-      enqueue_io(*running);
-      running = nullptr;
-    } else {
-      running->to_ready(now);
-      ready.push(*running);
-      running = nullptr;
-    }
+  // if CPU idle, jump to next arrival
+  if (ready.empty()) {
+    if (next_to_arrive < N) now = proc[next_to_arrive].arrival_time;
+    else break;
+    continue;
   }
 
-  now += QUANTUM;
+  auto p = ready.front(); ready.pop_front();
+  run_time = min(QUANTUM, p.remaining_time);
+  now += run_time;
+  p.remaining_time -= run_time;
+
+  if (p.remaining_time > 0) ready.push_back(p);
+  else record_completion(p, now);
 }
 ```
 
@@ -216,14 +191,15 @@ while (!ready.empty() || !io.empty() || running) {
 
 ## Roadmap
 
-* Implement `process.cpp` fully.
-* Add a basic scheduler with READY and WAITING queues.
-* Simulate I/O devices with delays.
-* Add CLI for selecting scheduling policies (FCFS, SJF, RR, Priority).
-* Generate statistics for waiting and turnaround time.
+* Add **FCFS** and **SRTF** implementations matching the current style.
+* Implement `process.cpp` fully and integrate I/O wait queues.
+* Add CLI flags for policy selection and quantum configuration.
+* Generate and export CSV summaries for metrics.
 
 ---
 
 ## License / Attribution
 
 Add a license file at the repository root (e.g., MIT) or follow your course’s required licensing.
+
+
