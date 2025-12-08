@@ -2,9 +2,9 @@
 
 ## Team
 - Cash Bailey  
-- Alejandro Castineyra  
-- Sylvia Ortega  
-- Sarah Ramos Luna  
+- Alejandro Castineyra
+- Sarah Ramos-Luna
+- Sylvia Ortega 
 
 ---
 
